@@ -1,14 +1,15 @@
+$LOAD_PATH.unshift File.expand_path(File.dirname(__FILE__))
 require 'spec_helper'
 
 describe Threadz do
   describe Threadz::ThreadPool do
     before(:each) do
-      @T = ThreadPool.new
+      @T = Threadz::ThreadPool.new
     end
 
     it "should support batches" do
       i = 0
-      b = T.new_batch
+      b = @T.new_batch
       b << lambda { i += 1 }
       b << lambda { i -= 1 }
       b << [lambda { i += 2}, lambda { i -= 1}]
@@ -18,7 +19,7 @@ describe Threadz do
 
     it "should support latent batches" do
       i = 0
-      b = T.new_batch :latent => true
+      b = @T.new_batch :latent => true
       b << lambda { i += 1 }
       b << lambda { i -= 1 }
       b << [lambda { i += 2}, lambda { i -= 1}]
@@ -30,19 +31,34 @@ describe Threadz do
       i.should == 1
     end
 
-    it "should support batches + waiting with timeouts" do
+    it "should support batches and waiting with timeouts" do
       i = 0
-      b = T.new_batch
+      b = @T.new_batch
       b << lambda { i += 1 }
       b << lambda { i -= 1 }
       b << [lambda { i += 2}, lambda { 50000000.times {}}]
-      
-      b.wait_until_done :timeout => 0.5
-      if b.completed?
-        puts "batch done"
-      else
-        puts "batch not done"
-      end
+
+      t = Time.now
+      timeout = 0.5
+
+      b.wait_until_done :timeout => timeout
+
+      b.completed?.should be_false
+      (Time.now - t).should >= 0.5
+    end
+
+    it "should support completed even without timeouts" do
+      i = 0
+      b = @T.new_batch
+      b << lambda { i += 1 }
+      b << lambda { i -= 1 }
+      b << [lambda { i += 2}, lambda { sleep 0.05 while i < 10 }]
+      b.completed?.should be_false
+      sleep 0.2
+      b.completed?.should be_false
+      i = 10
+      sleep 0.2
+      b.completed?.should be_true
     end
   end
 end
