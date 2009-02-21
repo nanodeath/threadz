@@ -10,7 +10,7 @@ require 'rubygems/source_info_cache'
 spec = Gem::Specification.load(File.join(File.dirname(__FILE__), 'threadz.gemspec'))
 
 desc "Default Task"
-task 'default' => ['test', 'rdoc']
+task 'default' => ['spec', 'rdoc']
 
 
 desc "If you're building from sources, run this task first to setup the necessary dependencies"
@@ -30,17 +30,15 @@ end
 
 
 desc "Run all test cases"
-Rake::TestTask.new do |test|
-  test.verbose = true
-  test.test_files = ['test/*.rb']
-  test.warning = true
+task 'spec' do |task|
+  exec 'spec -c spec/*.rb'
 end
-
 # Create the documentation.
 Rake::RDocTask.new do |rdoc|
   rdoc.main = 'README.rdoc'
   rdoc.rdoc_files.include('README.rdoc', 'lib/**/*.rb')
   rdoc.title = "Threadz Thread Pool"
+  rdoc.rdoc_dir = 'doc'
 end
 
 
