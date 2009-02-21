@@ -21,7 +21,7 @@ describe Threadz do
       i = 0
 
       lambda { @T.new_batch }.should_not raise_error
-      lambda { @T.new_batch :latent => true }.should_not raise_error
+      lambda { @T.new_batch(:latent => true) }.should_not raise_error
     end
 
     describe Threadz::ThreadPool::Batch do
@@ -30,10 +30,11 @@ describe Threadz do
         b = @T.new_batch
         10.times do
           b << lambda { i += 1 }
+          b << Proc.new { i += 1 }
         end
         b.wait_until_done
 
-        i.should == 10
+        i.should == 20
       end
 
       it "should support arrays of jobs" do
@@ -41,9 +42,10 @@ describe Threadz do
         b = @T.new_batch
         b << [lambda { i += 2}, lambda { i -= 1}]
         b << [lambda { i += 2}]
+        b << lambda { i += 1 }
         b.wait_until_done
 
-        i.should == 3
+        i.should == 4
       end
 
       it "should support reuse" do
@@ -174,6 +176,25 @@ describe Threadz do
         b.when_done { when_done_executed = true }
         
         when_done_executed.should be_true
+      end
+
+      it "should support multiple 'when_done' blocks" do
+        i = 0
+        when_done_executed = 0
+        b = @T.new_batch
+
+        # We're not testing what happens when 'when_done' is called and
+        # the batch is already finished, so wrapping in Thread#exclusive
+        Thread.exclusive do
+          100.times { b << lambda { i += 1 } }
+        end
+
+        3.times { b.when_done { when_done_executed += 1 } }
+
+        sleep(0.1)
+
+        b.completed?.should be_true
+        when_done_executed.should == 3
       end
 
       it "shouldn't fail under load" do

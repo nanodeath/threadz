@@ -1,0 +1,49 @@
+= Threadz Thread Pool Library
+
+== Description
+
+This is a thread pool library that you can do two main things with, which I'll demonstrate in code:
+
+  # These are more for "fire and forget" tasks
+  T1 = Threadz::ThreadPool.new
+  T1.process { puts "my first task" }
+  T1.process { puts "my second task" }
+
+  # If you care when the tasks complete, use batches
+  T2 = Threadz::ThreadPool.new
+  b = T2.new_batch
+  b << lambda { puts "my first task" }
+  b << lambda { puts "my second task" }
+
+  puts "do a couple of other things..."
+
+  b.wait_until_done
+
+  # You can do other things, too
+
+  T3 = Threadz::ThreadPool.new
+  b = T3.new_batch
+  b << lambda { puts "my first task" }
+  b << lambda { puts "my second task" }
+
+  puts "do a couple of other things..."
+
+  b.when_done { puts "woohoo, done with tasks" }
+
+  puts "and some other stuff, blah"
+
+  b = T3.new_batch
+  b << lambda { 10000000.times {} }
+
+  b.wait_until_done(:timeout => 0.1)
+  puts b.completed? ? "finished!" : "didn't finish"
+
+The thread pool is also smart -- depending on load, it can either spawn or cull additional threads (at a rate you can set).
+
+== Examples
+
+For examples, please see the well-documented specs.  They're all fairly simple and straightforward.  Please message me if they're not.
+
+== Disclaimer
+
+Consider this product in late alpha.  There are still some bugs to be worked out and the API may change.

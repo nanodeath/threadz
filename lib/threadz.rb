@@ -130,7 +130,7 @@ module Threadz
 
     # A batch is a collection of jobs you care about that gets pushed off to
     # the attached thread pool.  The calling thread can be signaled when the
-    # batch has completed executing.
+    # batch has completed executing, or a block can be executed.
     class Batch
       # Creates a new batch attached to the given threadpool.  A number of options
       # are available:
