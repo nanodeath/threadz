@@ -80,10 +80,11 @@ module Threadz
           x = @queue.shift
           begin
             x.call
-          rescue Exception => e
-            puts e.inspect
+          rescue StandardError => e
+            $stderr.puts "Error in thread: #{e.inspect}\n#{e.backtrace.join("\n")}"
           end
-          exit if Thread.current[:suicide]
+          Thread.current.terminate if Thread.current[:suicide]
+          Thread.pass
         end
       end
       puts "spawning thread: now thread count is #{@threads.length}" if $DEBUG
@@ -183,7 +184,14 @@ module Threadz
             # Thread#wakeup is called on it, though.
             sleep(timeout)
           else
-            Thread.stop
+            # Current bug: gets stuck here sometimes, like when calling "should call 'when_done' immediately when batch is already done"
+            
+            begin
+              Thread.stop
+            rescue Exception => e
+              puts "waiting: @jobs is currently #{@jobs}"
+              raise e
+            end
           end
         end
       end

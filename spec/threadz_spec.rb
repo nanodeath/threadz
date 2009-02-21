@@ -165,8 +165,6 @@ describe Threadz do
 
         Thread.exclusive do
           100.times { b << lambda { i += 1 } }
-
-          pending if b.completed?
         end
 
         b.wait_until_done
@@ -178,9 +176,9 @@ describe Threadz do
         when_done_executed.should be_true
       end
 
-      it "shouldn't fail" do
+      it "shouldn't fail under load" do
         jobs = 1000
-        times_per_job = 100
+        times_per_job = 1000
         i = 0
 
         b1 = @T.new_batch(:latent => true)
