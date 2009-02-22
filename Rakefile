@@ -33,6 +33,19 @@ desc "Run all test cases"
 task 'spec' do |task|
   exec 'spec -c spec/*.rb'
 end
+
+desc "Run all test cases 10 times (or n times)"
+task 'spec-stress', [:times] do |task, args|
+  args.with_defaults :times => 10
+  puts "Executing spec #{args.times} times"
+  puts Rake::Task[:spec].methods.sort.inspect
+  args.times.times do
+    Rake::Task[:spec].execute
+    puts "foo"
+  end
+  puts "Done!"
+end
+
 # Create the documentation.
 Rake::RDocTask.new do |rdoc|
   rdoc.main = 'README.rdoc'

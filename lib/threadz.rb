@@ -34,7 +34,7 @@ module Threadz
     # Creates a new thread pool into which you can queue jobs.
     # There are a number of options:
     # :initial_size:: The number of threads you start out with initially.  Also, the minimum number of threads.
-    #                 By default, this is 4.
+    #                 By default, this is 10.
     # :maximum_size:: The highest number of threads that can be allocated.  By default, this is the minimum size x 5.
     # :kill_threshold:: Constant that determines when new threads are needed or when threads can be killed off.
     #                   If the internally tracked kill score falls to positive kill_threshold, then a thread is killed off and the
@@ -44,7 +44,7 @@ module Threadz
     #                   kill score is incremented by THREADS_IDLE_SCORE.  If there are no idle threads (and
     #                   we're below maximum size) the kill score is decremented by THREADS_KILL_SCORE.
     def initialize(opts={})
-      @min_size = opts[:initial_size] || 4 # documented
+      @min_size = opts[:initial_size] || 10 # documented
       @max_size = opts[:maximum_size] || @min_size * 5 # documented
 
       # This is our main queue for jobs
@@ -139,6 +139,7 @@ module Threadz
       def initialize(threadpool, opts={})
         @threadpool = threadpool
         @waiting_threads = []
+        @mutex = { :waiting_threads => Mutex.new }
         @jobs = 0
         @when_done_blocks = []
 
@@ -175,21 +176,25 @@ module Threadz
       # +:timeout+:: If specified, will only wait for at least this many seconds
       #              for the batch to finish.  Typically used with #completed?
       def wait_until_done(opts={})
-        Thread.exclusive do
-          return if completed?
-          @waiting_threads << Thread.current
+        return if completed?
+
+        begin
+          @mutex[:waiting_threads].synchronize do
+            @waiting_threads << Thread.current
+          end
           timeout = opts.key?(:timeout) ? opts[:timeout] : -1
           if timeout > 0.0
             # Go to sleep for at most timeout seconds.  It will wake up again if
             # Thread#wakeup is called on it, though.
-            sleep(timeout)
+            sleep(timeout) unless completed?
           else
-            # Current bug: gets stuck here sometimes, like when calling "should call 'when_done' immediately when batch is already done"
-            
+
+            # Current bug: gets stuck here sometimes
             begin
-              Thread.stop
+              j = @jobs
+              Thread.stop unless completed?
             rescue Exception => e
-              puts "waiting: @jobs is currently #{@jobs}"
+              puts "waiting: @jobs is currently #{@jobs}, was #{j} when stopped, waiting threads is #{@waiting_threads.length} long"
               raise e
             end
           end
@@ -230,14 +235,19 @@ module Threadz
 
       private
       def signal_done
-        @waiting_threads.shift.wakeup until @waiting_threads.empty?
+        puts "signal_done" if $DEBUG
+        @mutex[:waiting_threads].synchronize do
+          @waiting_threads.shift.wakeup until @waiting_threads.empty?
+        end
         @when_done_blocks.shift.call until @when_done_blocks.empty?
+        puts "*executing when-done blocks" if $DEBUG
       end
 
-      def send_to_threadpool job
+      def send_to_threadpool(job)
         @threadpool.process do
           job.call
           @jobs -= 1
+          (completed? ? puts("signalling (jobs is #{@jobs})") : puts("not signalling done...")) if $DEBUG
           signal_done if completed?
         end
       end
