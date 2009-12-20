@@ -5,6 +5,7 @@ require 'rake/testtask'
 require 'rake/rdoctask'
 require 'rake/gempackagetask'
 require 'rubygems/source_info_cache'
+require 'spec/rake/spectask'
 
 
 spec = Gem::Specification.load(File.join(File.dirname(__FILE__), 'threadz.gemspec'))
@@ -100,4 +101,11 @@ end
 
 task 'clobber' do
   rm_f '.changes'
+end
+
+desc "Run all examples with RCov"
+Spec::Rake::SpecTask.new('spec:rcov') do |t|
+  t.spec_files = FileList['spec/**/*.rb']
+  t.rcov = true
+  t.rcov_opts = ['--exclude', 'spec']
 end

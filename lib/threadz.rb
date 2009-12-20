@@ -157,6 +157,11 @@ module Threadz
 
         #latent
         @latent = opts.key?(:latent) ? opts[:latent] : false
+        if(@latent)
+          @started = false
+        else
+          @started = true
+        end
         @job_queue = Queue.new if @latent
       end
 
@@ -169,7 +174,7 @@ module Threadz
           job.each {|j| self << j}
         elsif job.respond_to? :call
           @jobs_count.increment
-          if @latent
+          if @latent && !@started
             @job_queue << job
           else
             send_to_threadpool job
@@ -187,11 +192,13 @@ module Threadz
       #              for the batch to finish.  Typically used with #completed?
       def wait_until_done(opts={})
         return if completed?
+        
+        raise "Threadz: thread deadlocked because batch job was never started" if @latent && !@started
 
-        timeout = opts.key?(:timeout) ? opts[:timeout] : nil
-        raise "Timeout not supported at the moment" if timeout
+        timeout = opts.key?(:timeout) ? opts[:timeout] : 0
+        #raise "Timeout not supported at the moment" if timeout
 
-        @sleeper.wait
+        @sleeper.wait(timeout)
       end
 
       # Returns true iff there are no unfinished jobs in the queue.
@@ -203,6 +210,7 @@ module Threadz
       def start
         Thread.exclusive do # in case another thread tries to push new jobs onto the queue while we're starting
           if @latent
+            @started = true
             until @job_queue.empty?
               send_to_threadpool @job_queue.pop
             end
@@ -226,6 +234,14 @@ module Threadz
       end
 
       private
+      def handle_done
+        @sleeper.broadcast
+        @when_done_blocks.each do |b|
+          b.call
+        end
+        @when_done_blocks = []
+      end
+      
       def send_to_threadpool(job)
         @threadpool.process do
           job.call
@@ -233,7 +249,7 @@ module Threadz
           @job_lock.lock
           @jobs_count.decrement
           # fork in the road
-          @sleeper.broadcast if completed?
+          handle_done if completed?
           @job_lock.unlock
         end
       end

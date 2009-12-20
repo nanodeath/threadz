@@ -1,3 +1,5 @@
+require 'thread'
+
 module Threadz
 	class AtomicInteger
 		def initialize(value)
