@@ -109,3 +109,17 @@ Spec::Rake::SpecTask.new('spec:rcov') do |t|
   t.rcov = true
   t.rcov_opts = ['--exclude', 'spec']
 end
+
+begin
+  require 'jeweler'
+  Jeweler::Tasks.new do |gemspec|
+    gemspec.name = "threadz"
+    gemspec.summary = "A Ruby threadpool library to handle threadpools and make batch jobs easier."
+    #gemspec.description = "Longer description?"
+    gemspec.email = "nanodeath@gmail.com"
+    gemspec.homepage = "http://github.com/nanodeath/threadz"
+    gemspec.authors = ["Max Aller"]
+  end
+rescue LoadError
+  puts "Jeweler not available.  Install it with: sudo gem install jeweler"
+end
