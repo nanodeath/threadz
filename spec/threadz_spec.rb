@@ -1,8 +1,6 @@
 $LOAD_PATH.unshift File.expand_path(File.dirname(__FILE__))
 require 'spec_helper'
 
-require 'net/http'
-
 describe Threadz do
   describe Threadz::ThreadPool do
     before(:each) do
@@ -24,40 +22,6 @@ describe Threadz do
 
       lambda { @T.new_batch }.should_not raise_error
       lambda { @T.new_batch(:latent => true) }.should_not raise_error
-    end
-
-    it "should perform well for IO jobs" do
-      urls = []
-      urls << "http://www.google.com/" << "http://www.yahoo.com/" << 'http://www.microsoft.com/'
-      urls << "http://www.cnn.com/" << "http://slashdot.org/" << "http://www.mozilla.org/"
-      urls << "http://www.ubuntu.com/" << "http://github.com/"
-      time_single_threaded = Time.now
-
-      begin
-        (urls * 3).each do |url|
-          response = Net::HTTP.get_response(URI.parse(url))
-          body = response.body
-        end
-
-        time_single_threaded = Time.now - time_single_threaded
-
-        time_multi_threaded = Time.now
-        b = @T.new_batch
-        (urls * 3).each do |url|
-          b << Proc.new do
-            response = Net::HTTP.get_response(URI.parse(url))
-            body = response.body
-          end
-        end
-
-        b.wait_until_done
-        time_multi_threaded = Time.now - time_multi_threaded
-
-        time_multi_threaded.should < time_single_threaded
-
-      rescue SocketError
-        pending "pending working internet connection"
-      end
     end
 
     describe Threadz::Batch do
@@ -108,7 +72,7 @@ describe Threadz do
         @i.should == 3
       end
 
-      it "should support latent option correctly" do
+      it "should support latent option" do
         i = 0
         b = @T.new_batch(:latent => true)
         b << lambda { i += 1 }
@@ -172,11 +136,11 @@ describe Threadz do
       end
 
       it "should support 'when_done'" do
-        i = 0
+        i = ::Threadz::AtomicInteger.new(0)
         when_done_executed = false
         b = @T.new_batch(:latent => true)
 
-        100.times { b << lambda { i += 1 } }
+        100.times { b << lambda { i.increment } }
 
         b.when_done { when_done_executed = true }
 
@@ -184,8 +148,12 @@ describe Threadz do
 
         b.start
 
-        sleep(0.1)
+				Timeout::timeout(10) do
+					sleep(0.1) until i.value == 100
+				end
 
+				i.value.should == 100
+				
         b.completed?.should be_true
         when_done_executed.should be_true
       end
@@ -193,11 +161,11 @@ describe Threadz do
       it "should call 'when_done' immediately when batch is already done" do
         i = 0
         when_done_executed = false
-        b = @T.new_batch
+        b = @T.new_batch :latent => true
 
-        Thread.exclusive do
-          100.times { b << lambda { i += 1 } }
-        end
+				100.times { b << lambda { i += 1 } }
+
+				b.start
 
         b.wait_until_done
 
@@ -211,42 +179,19 @@ describe Threadz do
       it "should support multiple 'when_done' blocks" do
         i = 0
         when_done_executed = 0
-        b = @T.new_batch
+        b = @T.new_batch :latent => true
 
-        # We're not testing what happens when 'when_done' is called and
-        # the batch is already finished, so wrapping in Thread#exclusive
-        Thread.exclusive do
-          100.times { b << lambda { i += 1 } }
-        end
+				100.times { b << lambda { i += 1 } }
 
-        3.times { b.when_done { when_done_executed += 1 } }
+        10.times { b.when_done { when_done_executed += 1 } }
 
-        sleep(0.1)
+
+				b.start
+
+        b.wait_until_done
 
         b.completed?.should be_true
-        when_done_executed.should == 3
-      end
-
-      it "shouldn't fail under load" do
-        jobs = 1000
-        times_per_job = 100
-        i = ::Threadz::AtomicInteger.new(0)
-
-        b1 = @T.new_batch(:latent => true)
-        b2 = @T.new_batch(:latent => true)
-
-        jobs.times do
-          b1 << lambda { times_per_job.times { i.increment } }
-          b2 << lambda { times_per_job.times { i.decrement } }
-        end
-
-        b1.start
-        b2.start
-
-        b1.wait_until_done
-        b2.wait_until_done
-
-        i.value.should == 0
+        when_done_executed.should == 10
       end
     end
   end

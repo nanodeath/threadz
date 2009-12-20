@@ -55,24 +55,20 @@ module Threadz
       # +:timeout+:: If specified, will only wait for at least this many seconds
       #              for the batch to finish.  Typically used with #completed?
       def wait_until_done(opts={})
-        return if completed?
-
         raise "Threadz: thread deadlocked because batch job was never started" if @latent && !@started
 
         timeout = opts.key?(:timeout) ? opts[:timeout] : 0
-        #raise "Timeout not supported at the moment" if timeout
-
-        @sleeper.wait(timeout)
+        @sleeper.wait(timeout) unless completed?
       end
 
-      # Returns true iff there are no unfinished jobs in the queue.
+      # Returns true iff there are no jobs outstanding.
       def completed?
         return @jobs_count.value == 0
       end
 
       # If this is a latent batch, start processing all of the jobs in the queue.
       def start
-        Thread.exclusive do # in case another thread tries to push new jobs onto the queue while we're starting
+				@job_lock.synchronize {  # in case another thread tries to push new jobs onto the queue while we're starting
           if @latent
             @started = true
             until @job_queue.empty?
@@ -82,19 +78,13 @@ module Threadz
           else
             return false
           end
-        end
+				}
       end
 
       # Execute a given block when the batch has finished processing.  If the batch
       # has already finished executing, execute immediately.
       def when_done(&block)
-        @job_lock.lock
-        if completed?
-          block.call
-        else
-          @when_done_blocks << block
-        end
-        @job_lock.unlock
+        @job_lock.synchronize { completed? ? block.call : @when_done_blocks << block }
       end
 
       private
@@ -110,11 +100,13 @@ module Threadz
         @threadpool.process do
           job.call
           # Lock in case we get two threads at the "fork in the road" at the same time
-          @job_lock.lock
+					# Note: locking here actually creates undesirable behavior.  Still investigating why,
+					# seems like it should be useful.
+          #@job_lock.lock
           @jobs_count.decrement
           # fork in the road
           handle_done if completed?
-          @job_lock.unlock
+          #@job_lock.unlock
         end
       end
     end
