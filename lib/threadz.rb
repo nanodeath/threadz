@@ -10,6 +10,9 @@
 # License::      Distributed under the MIT License
 require 'thread'
 
+['atomic_integer', 'sleeper', 'directive'].each { |lib| require File.join(File.dirname(__FILE__), lib) }
+
+#$DEBUG = true
 # Example:
 #  T = ThreadPool.new
 #  b = T.new_batch
@@ -25,11 +28,11 @@ module Threadz
   # has access to it.
   class ThreadPool
     # Default setting for kill threshold
-    KILL_THRESHOLD = 100
-    # Setting for how much to decrement current kill score by when threads are very busy
-    THREADS_BUSY_SCORE = 20
-    # Setting for how much to increment current kill score by when there are excess idle threads
-    THREADS_IDLE_SCORE = 20 
+    KILL_THRESHOLD = 10
+    # Setting for how much to decrement current kill score by for each queued job
+    THREADS_BUSY_SCORE = 1
+    # Setting for how much to increment current kill score by for *each* idle thread
+    THREADS_IDLE_SCORE = 1
 
     # Creates a new thread pool into which you can queue jobs.
     # There are a number of options:
@@ -39,22 +42,26 @@ module Threadz
     # :kill_threshold:: Constant that determines when new threads are needed or when threads can be killed off.
     #                   If the internally tracked kill score falls to positive kill_threshold, then a thread is killed off and the
     #                   kill score is reset.  If the kill score rises to negative kill_threshold, then a new thread
-    #                   is created and the kill score is reset.  Every 0.01 seconds, the state of all threads in the
+    #                   is created and the kill score is reset.  Every 0.1 seconds, the state of all threads in the
     #                   pool is checked.  If there is more than one idle thread (and we're above minimum size), the
-    #                   kill score is incremented by THREADS_IDLE_SCORE.  If there are no idle threads (and
-    #                   we're below maximum size) the kill score is decremented by THREADS_KILL_SCORE.
+    #                   kill score is incremented by THREADS_IDLE_SCORE for each idle thread.  If there are no idle threads
+    #                   (and we're below maximum size) the kill score is decremented by THREADS_KILL_SCORE for each queued job.
     def initialize(opts={})
       @min_size = opts[:initial_size] || 10 # documented
       @max_size = opts[:maximum_size] || @min_size * 5 # documented
 
       # This is our main queue for jobs
       @queue = Queue.new
-      @threads = []
+      @worker_threads_count = AtomicInteger.new(0)
       @min_size.times { spawn_thread }
       @killscore = 0
       @killthreshold = opts[:kill_threshold] || KILL_THRESHOLD # documented
 
       spawn_watch_thread
+    end
+    
+    def thread_count
+      @worker_threads_count.value
     end
 
     # Push a process onto the job queue for the thread pool to pick up.
@@ -75,28 +82,27 @@ module Threadz
 
     # Spin up a new thread
     def spawn_thread
-      @threads << Thread.new do
+      Thread.new do
         while true
           x = @queue.shift
+          if x == Directive::SUICIDE_PILL
+          	@worker_threads_count.decrement
+          	Thread.current.terminate
+          end
+          Thread.pass
           begin
             x.call
           rescue StandardError => e
-            $stderr.puts "Error in thread: #{e.inspect}\n#{e.backtrace.join("\n")}"
+            $stderr.puts "Threadz: Error in thread, but restarting with next job: #{e.inspect}\n#{e.backtrace.join("\n")}"
           end
-          Thread.current.terminate if Thread.current[:suicide]
-          Thread.pass
         end
       end
-      puts "spawning thread: now thread count is #{@threads.length}" if $DEBUG
+      @worker_threads_count.increment
     end
 
     # Kill a thread after it completes its current job
     def kill_thread
-      Thread.exclusive do
-        t = @threads.pop
-        t[:suicide] = true unless t.nil?
-      end
-      puts "killing thread: now threadcount is #{@threads.length}" if $DEBUG
+      @queue.unshift(Directive::SUICIDE_PILL)
     end
 
     # This thread watches over the pool and allocated and deallocates threads
@@ -105,29 +111,32 @@ module Threadz
       @watch_thread = Thread.new do
         while true
           # If there are idle threads and we're above minimum
-          if @queue.num_waiting > 1 && @threads.length > @min_size # documented
-            @killscore += THREADS_IDLE_SCORE
-            # If there are no threads idle and we have room for more
-          elsif(@queue.num_waiting == 0 && @threads.length < @max_size) # documented
-            @killscore -= THREADS_KILL_SCORE
+          if @queue.num_waiting > 0 && @worker_threads_count.value > @min_size # documented
+            @killscore += THREADS_IDLE_SCORE * @queue.num_waiting
+          
+          # If there are no threads idle and we have room for more
+          elsif(@queue.num_waiting == 0 && @worker_threads_count.value < @max_size) # documented
+            @killscore -= THREADS_BUSY_SCORE * @queue.length
+          
           else
             # Decay,
-            if(@killscore < 0)
-              @killscore += 1
-            elsif(@killscore > 0)
-              @killscore -= 1
+            if(@killscore != 0)
+              @killscore *= 0.9
+            end
+            if(@killscore.abs < 1)
+              @killscore = 0
             end
           end
           if @killscore.abs >= @killthreshold
             @killscore > 0 ? kill_thread : spawn_thread
             @killscore = 0
           end
-          
-          sleep 0.01
+          puts "killscore: #{@killscore}. waiting: #{@queue.num_waiting}.  threads length: #{@worker_threads_count.value}.  min/max: [#{@min_size}, #{@max_size}]" if $DEBUG
+          sleep 0.1
         end
       end
     end
-
+    
     # A batch is a collection of jobs you care about that gets pushed off to
     # the attached thread pool.  The calling thread can be signaled when the
     # batch has completed executing, or a block can be executed.
@@ -139,26 +148,27 @@ module Threadz
       def initialize(threadpool, opts={})
         @threadpool = threadpool
         @waiting_threads = []
-        @mutex = { :waiting_threads => Mutex.new }
-        @jobs = 0
+        @job_lock = Mutex.new
+        @jobs_count = AtomicInteger.new(0)
         @when_done_blocks = []
+        @sleeper = ::Threadz::Sleeper.new
 
         ## Options
 
         #latent
         @latent = opts.key?(:latent) ? opts[:latent] : false
-        @job_queue = [] if @latent
+        @job_queue = Queue.new if @latent
       end
 
       # Add a new job to the batch.  If this is a latent batch, the job can't
       # be scheduled until the batch is #start'ed; otherwise it may start
       # immediately.  The job can be anything that responds to +call+ or an
       # array of objects that respond to +call+.
-      def <<(job)
+      def push(job)
         if job.is_a? Array
           job.each {|j| self << j}
         elsif job.respond_to? :call
-          @jobs += 1
+          @jobs_count.increment
           if @latent
             @job_queue << job
           else
@@ -169,7 +179,7 @@ module Threadz
         end
       end
 
-      alias_method(:push, :<<)
+      alias << push
 
       # Put the current thread to sleep until the batch is done processing.
       # There are options available:
@@ -178,37 +188,19 @@ module Threadz
       def wait_until_done(opts={})
         return if completed?
 
-        begin
-          @mutex[:waiting_threads].synchronize do
-            @waiting_threads << Thread.current
-          end
-          timeout = opts.key?(:timeout) ? opts[:timeout] : -1
-          if timeout > 0.0
-            # Go to sleep for at most timeout seconds.  It will wake up again if
-            # Thread#wakeup is called on it, though.
-            sleep(timeout) unless completed?
-          else
+        timeout = opts.key?(:timeout) ? opts[:timeout] : nil
+        raise "Timeout not supported at the moment" if timeout
 
-            # Current bug: gets stuck here sometimes
-            begin
-              j = @jobs
-              Thread.stop unless completed?
-            rescue Exception => e
-              puts "waiting: @jobs is currently #{@jobs}, was #{j} when stopped, waiting threads is #{@waiting_threads.length} long"
-              raise e
-            end
-          end
-        end
+        @sleeper.wait
       end
 
       # Returns true iff there are no unfinished jobs in the queue.
       def completed?
-        return @jobs == 0
+        return @jobs_count.value == 0
       end
 
       # If this is a latent batch, start processing all of the jobs in the queue.
       def start
-        
         Thread.exclusive do # in case another thread tries to push new jobs onto the queue while we're starting
           if @latent
             until @job_queue.empty?
@@ -224,31 +216,25 @@ module Threadz
       # Execute a given block when the batch has finished processing.  If the batch
       # has already finished executing, execute immediately.
       def when_done(&block)
-        Thread.exclusive do # in case a new job gets added between completed? and block.call
-          if completed?
-            block.call
-          else
-            @when_done_blocks << block
-          end
+        @job_lock.lock
+        if completed?
+          block.call
+        else
+          @when_done_blocks << block
         end
+        @job_lock.unlock
       end
 
       private
-      def signal_done
-        puts "signal_done" if $DEBUG
-        @mutex[:waiting_threads].synchronize do
-          @waiting_threads.shift.wakeup until @waiting_threads.empty?
-        end
-        @when_done_blocks.shift.call until @when_done_blocks.empty?
-        puts "*executing when-done blocks" if $DEBUG
-      end
-
       def send_to_threadpool(job)
         @threadpool.process do
           job.call
-          @jobs -= 1
-          (completed? ? puts("signalling (jobs is #{@jobs})") : puts("not signalling done...")) if $DEBUG
-          signal_done if completed?
+          # Lock in case we get two threads at the "fork in the road" at the same time
+          @job_lock.lock
+          @jobs_count.decrement
+          # fork in the road
+          @sleeper.broadcast if completed?
+          @job_lock.unlock
         end
       end
     end
