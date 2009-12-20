@@ -5,7 +5,7 @@
 
 Gem::Specification.new do |s|
   s.name = %q{threadz}
-  s.version = "0.1.1"
+  s.version = "0.1.2"
 
   s.required_rubygems_version = Gem::Requirement.new(">= 0") if s.respond_to? :required_rubygems_version=
   s.authors = ["Max Aller"]
@@ -28,6 +28,8 @@ Gem::Specification.new do |s|
      "lib/threadz/sleeper.rb",
      "lib/threadz/thread_pool.rb",
      "spec/atomic_integer_spec.rb",
+     "spec/basic/thread_pool_spec.rb",
+     "spec/performance/batch_spec.rb",
      "spec/spec_helper.rb",
      "spec/threadz_spec.rb",
      "threadz.gemspec"
@@ -40,7 +42,9 @@ Gem::Specification.new do |s|
   s.test_files = [
     "spec/atomic_integer_spec.rb",
      "spec/threadz_spec.rb",
-     "spec/spec_helper.rb"
+     "spec/performance/batch_spec.rb",
+     "spec/spec_helper.rb",
+     "spec/basic/thread_pool_spec.rb"
   ]
 
   if s.respond_to? :specification_version then
