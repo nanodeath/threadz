@@ -60,7 +60,7 @@ describe Threadz do
       end
     end
 
-    describe Threadz::ThreadPool::Batch do
+    describe Threadz::Batch do
       it "should support jobs" do
         i = 0
         b = @T.new_batch
