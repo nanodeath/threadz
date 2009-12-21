@@ -32,7 +32,17 @@ end
 
 desc "Run all test cases"
 task 'spec' do |task|
-  exec 'spec -c spec/*.rb'
+  exec 'spec -c -f n spec/*.rb spec/basic/*.rb'
+end
+
+desc "Run all performance-oriented test cases"
+task 'spec:performance' do |task|
+  exec 'spec -c -f n -t 30.0 spec/spec_helper.rb spec/performance/*.rb'
+end
+
+desc "Run *all* specs"
+task 'spec:all' do |task|
+  exec 'spec -c -f n -t 30.0 spec/spec_helper.rb spec/**/*.rb'
 end
 
 desc "Run all test cases 10 times (or n times)"
