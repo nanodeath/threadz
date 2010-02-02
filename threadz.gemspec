@@ -5,11 +5,12 @@
 
 Gem::Specification.new do |s|
   s.name = %q{threadz}
-  s.version = "0.1.2"
+  s.version = "0.1.3"
 
   s.required_rubygems_version = Gem::Requirement.new(">= 0") if s.respond_to? :required_rubygems_version=
   s.authors = ["Max Aller"]
-  s.date = %q{2009-12-19}
+  s.date = %q{2010-02-01}
+  s.description = %q{A Ruby threadpool library to handle threadpools and make batch jobs easier.}
   s.email = %q{nanodeath@gmail.com}
   s.extra_rdoc_files = [
     "README.rdoc"
@@ -38,7 +39,7 @@ Gem::Specification.new do |s|
   s.rdoc_options = ["--charset=UTF-8"]
   s.require_paths = ["lib"]
   s.rubygems_version = %q{1.3.5}
-  s.summary = %q{A Ruby threadpool library to handle threadpools and make batch jobs easier.}
+  s.summary = %q{An easy Ruby threadpool library.}
   s.test_files = [
     "spec/atomic_integer_spec.rb",
      "spec/threadz_spec.rb",
