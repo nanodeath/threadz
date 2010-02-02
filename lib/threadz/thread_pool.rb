@@ -80,7 +80,8 @@ module Threadz
 
     # Kill a thread after it completes its current job
     def kill_thread
-      @queue.unshift(Directive::SUICIDE_PILL)
+      # TODO: ideally this would be unshift, but Queues don't have that.  Come up with an alternative.
+      @queue << Directive::SUICIDE_PILL
     end
 
     # This thread watches over the pool and allocated and deallocates threads
