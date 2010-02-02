@@ -124,8 +124,8 @@ begin
   require 'jeweler'
   Jeweler::Tasks.new do |gemspec|
     gemspec.name = "threadz"
-    gemspec.summary = "A Ruby threadpool library to handle threadpools and make batch jobs easier."
-    #gemspec.description = "Longer description?"
+    gemspec.summary = "An easy Ruby threadpool library."
+    gemspec.description = "A Ruby threadpool library to handle threadpools and make batch jobs easier."
     gemspec.email = "nanodeath@gmail.com"
     gemspec.homepage = "http://github.com/nanodeath/threadz"
     gemspec.authors = ["Max Aller"]
