@@ -19,5 +19,15 @@
 
 require 'thread'
 
+module Threadz
+  DEBUG = ENV['THREADZ_DEBUG'] == "1"
+  
+  def Threadz.dputs(string)
+    puts(string) if DEBUG
+  end
+end
+
+Threadz::dputs("Loading threadz")
+
 ['atomic_integer', 'sleeper', 'directive', 'batch', 'thread_pool'].each { |lib| require File.join(File.dirname(__FILE__), 'threadz', lib) }
 

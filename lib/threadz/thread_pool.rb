@@ -110,7 +110,7 @@ module Threadz
             @killscore > 0 ? kill_thread : spawn_thread
             @killscore = 0
           end
-          puts "killscore: #{@killscore}. waiting: #{@queue.num_waiting}.  threads length: #{@worker_threads_count.value}.  min/max: [#{@min_size}, #{@max_size}]" if $DEBUG
+          dputs "killscore: #{@killscore}. waiting: #{@queue.num_waiting}.  threads length: #{@worker_threads_count.value}.  min/max: [#{@min_size}, #{@max_size}]"
           sleep 0.1
         end
       end

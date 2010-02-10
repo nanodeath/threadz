@@ -23,6 +23,21 @@ describe Threadz do
       lambda { @T.new_batch }.should_not raise_error
       lambda { @T.new_batch(:latent => true) }.should_not raise_error
     end
+    
+    it "should not crash when killing threads" do
+        i = 0
+        b = @T.new_batch(:latent => true)
+        5000.times do
+          b << lambda { i += 1 }
+          b << lambda { i -= 1 }
+          b << [lambda { i += 2}, lambda { i -= 1}]
+        end
+
+        b.start
+        b.wait_until_done
+
+		50.times { sleep 0.1 }
+    end
 
     describe Threadz::Batch do
       it "should support jobs" do
