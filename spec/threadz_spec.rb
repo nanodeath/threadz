@@ -7,10 +7,20 @@ describe Threadz do
       @T = Threadz::ThreadPool.new
     end
 
-    it "should support process" do
+    it "should support process and accept a block" do
       i = 0
       3.times do
         @T.process { i += 1}
+      end
+      sleep 0.1
+
+      i.should == 3
+    end
+
+    it "should support process and accept an arg that responds to :call" do
+      i = 0
+      3.times do
+        @T.process(Proc.new { i += 1} )
       end
       sleep 0.1
 
