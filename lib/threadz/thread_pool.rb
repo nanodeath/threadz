@@ -45,8 +45,9 @@ module Threadz
     # Push a process onto the job queue for the thread pool to pick up.
     # Note that using this method, you can't keep track of when the job
     # finishes.  If you care about when it finishes, use batches.
-    def process(&block)
-      @queue << block
+    def process(callback = nil, &block)
+      callback ||= block
+      @queue << callback
       nil
     end
 
