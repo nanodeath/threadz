@@ -7,16 +7,16 @@ describe Threadz do
 			# This test should always fail, but there is a small chance it won't...
 			
 			i = 0
-			n = 10_000
-			threads = 10
+			n = 100_000
+			threads = 100
 			t = []
 			threads.times do
 				t << Thread.new do
-					sleep 0.05
+					sleep 0.1
 					n.times { i += 1 }
 				end
 				t << Thread.new do 
-					sleep 0.05
+					sleep 0.1
 					n.times { i -= 1 }
 				end
 			end
