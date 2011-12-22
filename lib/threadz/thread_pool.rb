@@ -5,11 +5,11 @@ module Threadz
   # The ThreadPool class contains all the threads available to whatever context
   # has access to it.
   class ThreadPool
-    # Default setting for kill threshold
+    # Default setting for kill threshold: 10
     KILL_THRESHOLD = 10
-    # Setting for how much to decrement current kill score by for each queued job
+    # Setting for how much to decrement current kill score by for each queued job: 1
     THREADS_BUSY_SCORE = 1
-    # Setting for how much to increment current kill score by for *each* idle thread
+    # Setting for how much to increment current kill score by for *each* idle thread: 1
     THREADS_IDLE_SCORE = 1
 
     # Creates a new thread pool into which you can queue jobs.
@@ -24,6 +24,12 @@ module Threadz
     #                   pool is checked.  If there is more than one idle thread (and we're above minimum size), the
     #                   kill score is incremented by THREADS_IDLE_SCORE for each idle thread.  If there are no idle threads
     #                   (and we're below maximum size) the kill score is decremented by THREADS_KILL_SCORE for each queued job.
+    #                   If the thread pool is being perfectly utilized (no queued work or idle workers), the kill score will decay
+    #                   and lose 10% of its value.
+    #                   In the default case of kill_threshold=10, if the thread pool is overworked for 10 consecutive checks (that is,
+    #                   1 second), a new thread will be created and the counter reset.  Similarly, if the thread pool is underutilized
+    #                   for 10 consecutive checks, an idle thread will be culled.  If you want the thread pool to scale more quickly with
+    #                   demand, try lowering the kill_threshold value.
     def initialize(opts={})
       @min_size = opts[:initial_size] || 10 # documented
       @max_size = opts[:maximum_size] || @min_size * 5 # documented

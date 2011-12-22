@@ -1,3 +1,8 @@
+1.0.0.beta
+==========
+Removing rcov and jeweler dependencies, fixing rspec at 1.x, adding some
+documentation, bumping to 1.x major version.
+
 0.1.0
 =====
 Initial release

@@ -19,6 +19,8 @@
 
 require 'thread'
 
+require "threadz/version"
+
 module Threadz
   DEBUG = ENV['THREADZ_DEBUG'] == "1"
   
