@@ -7,7 +7,7 @@ describe Threadz::ThreadPool do
 
 	it "should perform well for IO jobs" do
 		urls = []
-		urls << "http://www.google.com/" << "http://www.yahoo.com/" << 'http://www.microsoft.com/'
+		urls << "http://www.google.com/" << "http://www.yahoo.com/" << "http://www.microsoft.com/"
 		urls << "http://www.cnn.com/" << "http://slashdot.org/" << "http://www.mozilla.org/"
 		urls << "http://www.ubuntu.com/" << "http://github.com/"
 		time_single_threaded = Time.now
