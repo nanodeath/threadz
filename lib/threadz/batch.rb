@@ -1,4 +1,4 @@
-['atomic_integer', 'sleeper'].each { |lib| require File.join(File.dirname(__FILE__), lib) }
+['atomic_integer', 'sleeper', 'errors'].each { |lib| require File.join(File.dirname(__FILE__), lib) }
 
 module Threadz
     # A batch is a collection of jobs you care about that gets pushed off to
@@ -16,6 +16,12 @@ module Threadz
         @jobs_count = AtomicInteger.new(0)
         @when_done_blocks = []
         @sleeper = ::Threadz::Sleeper.new
+        @error_lock = Mutex.new
+        @errors = []
+        @error_handler = opts[:error_handler]
+        if @error_handler && !@error_handler.respond_to?(:call)
+          raise ArgumentError.new("ErrorHandler must respond to #call")
+        end
 
         ## Options
 
@@ -59,11 +65,22 @@ module Threadz
 
         timeout = opts.key?(:timeout) ? opts[:timeout] : 0
         @sleeper.wait(timeout) unless completed?
+        errors = self.errors
+        if !errors.empty? && !@error_handler
+          raise JobError.new(errors)
+        end
       end
 
       # Returns true iff there are no jobs outstanding.
       def completed?
         return @jobs_count.value == 0
+      end
+
+      # Returns the list of errors that occurred
+      def errors
+        arr = nil
+        @error_lock.synchronize { arr = @errors.dup }
+        arr
       end
 
       # If this is a latent batch, start processing all of the jobs in the queue.
@@ -98,7 +115,20 @@ module Threadz
 
       def send_to_threadpool(job)
         @threadpool.process do
-          job.call
+          control = Control.new
+          begin
+            control.reset_retry
+            job.call
+          rescue StandardError => e
+            @error_lock.synchronize { @errors << e }
+            control.errors << e
+            if @error_handler
+              @error_handler.call(e, control)
+              if control.retry?
+                retry
+              end
+            end
+          end
           # Lock in case we get two threads at the "fork in the road" at the same time
 					# Note: locking here actually creates undesirable behavior.  Still investigating why,
 					# seems like it should be useful.

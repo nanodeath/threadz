@@ -31,5 +31,5 @@ end
 
 Threadz::dputs("Loading threadz")
 
-['atomic_integer', 'sleeper', 'directive', 'batch', 'thread_pool'].each { |lib| require File.join(File.dirname(__FILE__), 'threadz', lib) }
+['atomic_integer', 'sleeper', 'directive', 'batch', 'thread_pool', 'errors'].each { |lib| require File.join(File.dirname(__FILE__), 'threadz', lib) }
 

@@ -1,4 +1,6 @@
 require 'thread'
+['control'].each { |lib| require File.join(File.dirname(__FILE__), lib) }
+
 
 module Threadz
 
@@ -53,7 +55,7 @@ module Threadz
     # finishes.  If you care about when it finishes, use batches.
     def process(callback = nil, &block)
       callback ||= block
-      @queue << callback
+      @queue << {:control => Control.new, :callback => callback}
       nil
     end
 
@@ -76,7 +78,7 @@ module Threadz
           end
           Thread.pass
           begin
-            x.call
+            x[:callback].call(x[:control])
           rescue StandardError => e
             $stderr.puts "Threadz: Error in thread, but restarting with next job: #{e.inspect}\n#{e.backtrace.join("\n")}"
           end

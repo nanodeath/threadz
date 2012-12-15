@@ -136,7 +136,7 @@ describe Threadz do
         b = @T.new_batch
         b << lambda { i += 1 }
         b << lambda { i -= 1 }
-        b << [lambda { i += 2}, lambda { sleep 0.01 while i < 10 }]
+        b << [lambda { i += 2}, lambda { sleep 0.1 while i < 10 }]
 
         b.completed?.should be_false
 
@@ -145,7 +145,10 @@ describe Threadz do
         b.completed?.should be_false
 
         i = 10
-        sleep 0.1
+
+        5.times do
+          sleep 1 if !b.completed?
+        end
 
         b.completed?.should be_true
       end
@@ -217,6 +220,35 @@ describe Threadz do
 
         b.completed?.should be_true
         when_done_executed.should == 10
+      end
+
+      context "when exceptions occur" do
+        it "should throw on #wait_until_done if no exception handler" do
+          b = @T.new_batch
+          b << lambda { raise }
+          expect { b.wait_until_done }.to raise_error(Threadz::JobError)
+        end
+        it "should execute the exception handler when given (and not throw in #wait_until_done)" do
+          error = nil
+          b = @T.new_batch :error_handler => lambda { |e, ctrl| error = e }
+          b << lambda { raise }
+          b.wait_until_done
+          error.should_not be_nil
+        end
+        it "should retry up to the designated number of times" do
+          count = 0
+          b = @T.new_batch :error_handler => lambda { |e, ctrl| count += 1; ctrl.try_again(3) }
+          b << lambda { raise }
+          b.wait_until_done
+          count.should == 3
+        end
+        it "should stash exceptions in the #errors field" do
+          b = @T.new_batch
+          b.errors.should be_empty
+          b << lambda { raise }
+          expect { b.wait_until_done }.to raise_error(Threadz::JobError)
+          b.errors.should_not be_empty
+        end
       end
     end
   end
