@@ -1,6 +1,6 @@
 = Threadz Thread Pool Library
 
-{<img src="https://travis-ci.org/nanodeath/threadz.png" />}[https://travis-ci.org/nanodeath/threadz]
+{<img src="https://travis-ci.org/nanodeath/threadz.png?branch=master" alt="Build Status" />}[https://travis-ci.org/nanodeath/threadz]
 {<img src="https://codeclimate.com/badge.png" />}[https://codeclimate.com/github/nanodeath/threadz]
 {<img src="https://gemnasium.com/nanodeath/threadz.png" alt="Dependency Status" />}[https://gemnasium.com/nanodeath/threadz]
 
@@ -41,6 +41,8 @@ This is a thread pool library that you can do two main things with, which I'll d
 
   b.wait_until_done(:timeout => 0.1)
   puts b.completed? ? "finished!" : "didn't finish"
+
+  # Exception handling: well-supported, see the specs though.  Much better examples.
 
 The thread pool is also smart -- depending on load, it can either spawn or cull additional threads (at a rate you can set).
 

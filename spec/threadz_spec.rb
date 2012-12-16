@@ -235,6 +235,7 @@ describe Threadz do
         end
         it "should retry up to the designated number of times" do
           count = 0
+          # Try again up to 3 times (total, including the first run)
           b = @T.new_batch :error_handler => lambda { |e, ctrl| count += 1; ctrl.try_again(3) }
           b << lambda { raise }
           b.wait_until_done
