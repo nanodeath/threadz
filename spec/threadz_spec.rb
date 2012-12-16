@@ -8,135 +8,133 @@ describe Threadz do
     end
 
     it "should support process and accept a block" do
-      i = 0
+      i = Threadz::AtomicInteger.new(0)
       3.times do
-        @T.process { i += 1}
+        @T.process { i.increment }
       end
       sleep 0.1
 
-      i.should == 3
+      i.value.should == 3
     end
 
     it "should support process and accept an arg that responds to :call" do
-      i = 0
+      i = Threadz::AtomicInteger.new(0)
       3.times do
-        @T.process(Proc.new { i += 1} )
+        @T.process(Proc.new { i.increment })
       end
       sleep 0.1
 
-      i.should == 3
+      i.value.should == 3
     end
 
     it "should support creating batches" do
-      i = 0
-
       lambda { @T.new_batch }.should_not raise_error
       lambda { @T.new_batch(:latent => true) }.should_not raise_error
     end
     
     it "should not crash when killing threads" do
-        i = 0
-        b = @T.new_batch(:latent => true)
-        5000.times do
-          b << lambda { i += 1 }
-          b << lambda { i -= 1 }
-          b << [lambda { i += 2}, lambda { i -= 1}]
-        end
+      i = Threadz::AtomicInteger.new(0)
+      b = @T.new_batch(:latent => true)
+      5000.times do
+        b << lambda { i.increment }
+        b << lambda { i.decrement }
+        b << [lambda { i.increment(2) }, lambda { i.decrement }]
+      end
 
-        b.start
-        b.wait_until_done
+      b.start
+      b.wait_until_done
 
-		50.times { sleep 0.1 }
+      50.times { sleep 0.1 }
     end
 
     describe Threadz::Batch do
       it "should support jobs" do
-        i = 0
+        i = Threadz::AtomicInteger.new(0)
         b = @T.new_batch
         10.times do
-          b << lambda { i += 1 }
-          b << Proc.new { i += 1 }
+          b << lambda { i.increment }
+          b << Proc.new { i.increment }
         end
         b.wait_until_done
 
-        i.should == 20
+        i.value.should == 20
       end
 
       it "should support arrays of jobs" do
-        i = 0
+        i = Threadz::AtomicInteger.new(0)
         b = @T.new_batch
-        b << [lambda { i += 2}, lambda { i -= 1}]
-        b << [lambda { i += 2}]
-        b << lambda { i += 1 }
+        b << [lambda { i.increment(2) }, lambda { i.decrement }]
+        b << [lambda { i.increment(2) }]
+        b << lambda { i.increment }
         b.wait_until_done
 
-        i.should == 4
+        i.value.should == 4
       end
 
       it "should support reuse" do
-        i = 0
+        i = Threadz::AtomicInteger.new(0)
         b = @T.new_batch
-        b << [lambda { i += 2}, lambda { i -= 1}, lambda { i -= 2 }]
+        b << [lambda { i.increment(2) }, lambda { i.decrement }, lambda { i.decrement(2) }]
         b.wait_until_done
 
-        i.should == -1
+        i.value.should == -1
 
-        b << [lambda { i += 9}, lambda { i -= 3}, lambda { i -= 4 }]
+        b << [lambda { i.increment(9) }, lambda { i.decrement(3) }, lambda { i.decrement(4) }]
         b.wait_until_done
 
-        i.should == 1
+        i.value.should == 1
       end
 
-      it "should play nicely with instance variables" do
-        @i = 0
+      it "should play nicely with instance variables (shouldn't steal binding)" do
+        @i = Threadz::AtomicInteger.new(0)
         b = @T.new_batch
-        b << [lambda { @i += 2}, lambda { @i -= 1}]
-        b << lambda { @i += 2}
+        b << [lambda { @i.increment(2) }, lambda { @i.decrement }]
+        b << lambda { @i.increment(2) }
         b.wait_until_done
 
-        @i.should == 3
+        @i.value.should == 3
       end
 
       it "should support latent option" do
-        i = 0
+        i = Threadz::AtomicInteger.new(0)
         b = @T.new_batch(:latent => true)
-        b << lambda { i += 1 }
-        b << lambda { i -= 1 }
-        b << [lambda { i += 2}, lambda { i -= 1}]
+        b << lambda { i.increment }
+        b << lambda { i.decrement }
+        b << [lambda { i.increment(2) }, lambda { i.decrement }]
 
-        i.should == 0
+        i.value.should == 0
 
         sleep 0.1
 
-        i.should == 0
+        i.value.should == 0
 
         b.start
         b.wait_until_done
 
-        i.should == 1
+        i.value.should == 1
       end
 
       it "should support waiting with timeouts" do
-        i = 0
+        i = Threadz::AtomicInteger.new(0)
         b = @T.new_batch
-        b << lambda { i += 1 }
-        b << lambda { i -= 1 }
-        b << [lambda { i += 2}, lambda { 500000000.times { i += 1}}]
+        b << lambda { i.increment }
+        b << lambda { i.increment }
+        b << [lambda { i.increment(2) }, lambda { 500000000.times { i.increment } }]
         t = Time.now
         timeout = 0.2
         b.wait_until_done(:timeout => timeout)
 
         b.completed?.should be_false
         (Time.now - t).should >= timeout
-        i.should > 2
+        i.value.should > 2
       end
 
       it "should support 'completed?' even without timeouts" do
-        i = 0
+        i = Threadz::AtomicInteger.new(0)
         b = @T.new_batch
-        b << lambda { i += 1 }
-        b << lambda { i -= 1 }
-        b << [lambda { i += 2}, lambda { sleep 0.1 while i < 10 }]
+        b << lambda { i.increment }
+        b << lambda { i.decrement }
+        b << [lambda { i.increment(2)}, lambda { sleep 0.1 while i.value < 10 }]
 
         b.completed?.should be_false
 
@@ -144,7 +142,7 @@ describe Threadz do
 
         b.completed?.should be_false
 
-        i = 10
+        i.set(10)
 
         5.times do
           sleep 1 if !b.completed?
@@ -154,17 +152,17 @@ describe Threadz do
       end
 
       it "should support 'push'" do
-        i = 0
+        i = Threadz::AtomicInteger.new(0)
         b = @T.new_batch
-        b.push(lambda { i += 1 })
-        b.push([lambda { i += 1 }, lambda { i += 1 }])
+        b.push(lambda { i.increment })
+        b.push([lambda { i.increment }, lambda { i.increment }])
         b.wait_until_done
 
-        i.should == 3
+        i.value.should == 3
       end
 
       it "should support 'when_done'" do
-        i = ::Threadz::AtomicInteger.new(0)
+        i = Threadz::AtomicInteger.new(0)
         when_done_executed = false
         b = @T.new_batch(:latent => true)
 
