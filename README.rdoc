@@ -2,6 +2,7 @@
 
 {<img src="https://travis-ci.org/nanodeath/threadz.png" />}[https://travis-ci.org/nanodeath/threadz]
 {<img src="https://codeclimate.com/badge.png" />}[https://codeclimate.com/github/nanodeath/threadz]
+{<img src="https://gemnasium.com/nanodeath/threadz.png" alt="Dependency Status" />}[https://gemnasium.com/nanodeath/threadz]
 
 == Description
 
