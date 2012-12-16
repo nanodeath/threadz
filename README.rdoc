@@ -1,5 +1,7 @@
 = Threadz Thread Pool Library
 
+{<img src="https://travis-ci.org/nanodeath/threadz.png" />}[https://travis-ci.org/nanodeath/threadz]
+
 == Description
 
 This is a thread pool library that you can do two main things with, which I'll demonstrate in code:
