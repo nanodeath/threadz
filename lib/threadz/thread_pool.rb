@@ -55,7 +55,7 @@ module Threadz
     # finishes.  If you care about when it finishes, use batches.
     def process(callback = nil, &block)
       callback ||= block
-      @queue << {:control => Control.new, :callback => callback}
+      @queue << Control.new(callback)
       nil
     end
 
@@ -78,7 +78,7 @@ module Threadz
           end
           Thread.pass
           begin
-            x[:callback].call(x[:control])
+            x.job.call(x)
           rescue StandardError => e
             $stderr.puts "Threadz: Error in thread, but restarting with next job: #{e.inspect}\n#{e.backtrace.join("\n")}"
           end

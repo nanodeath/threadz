@@ -228,25 +228,51 @@ describe Threadz do
         end
         it "should execute the exception handler when given (and not throw in #wait_until_done)" do
           error = nil
-          b = @T.new_batch :error_handler => lambda { |e, ctrl| error = e }
+          b = @T.new_batch(:error_handler => lambda { |e, ctrl| error = e })
           b << lambda { raise }
           b.wait_until_done
           error.should_not be_nil
         end
-        it "should retry up to the designated number of times" do
+        it "should retry up to 3 times by default" do
           count = 0
-          # Try again up to 3 times (total, including the first run)
-          b = @T.new_batch :error_handler => lambda { |e, ctrl| count += 1; ctrl.try_again(3) }
+          b = @T.new_batch(:error_handler => lambda { |e, ctrl| count += 1 })
           b << lambda { raise }
           b.wait_until_done
           count.should == 3
         end
-        it "should stash exceptions in the #errors field" do
+        it "should retry up to the designated number of times" do
+          count = 0
+          # Try again up to 4 times (excluding the first one; that wasn't a "retry")
+          b = @T.new_batch(:error_handler => lambda { |e, ctrl| count += 1 }, :max_retries => 4)
+          b << lambda { raise }
+          b.wait_until_done
+          count.should == 4
+        end
+        it "should stash exceptions in the #job_errors field" do
           b = @T.new_batch
-          b.errors.should be_empty
+          b.job_errors.should be_empty
           b << lambda { raise }
           expect { b.wait_until_done }.to raise_error(Threadz::JobError)
-          b.errors.should_not be_empty
+          b.job_errors.should_not be_empty
+        end
+        it "shouldn't hang if there's an exception in the error handler" do
+          error = nil
+          b = @T.new_batch(:error_handler => lambda { |e, ctrl| raise })
+          b << lambda { raise }
+          b.wait_until_done
+          b.job_errors.length.should == 3
+          b.error_handler_errors.length.should == 3
+        end
+        it "should allow you to respond to errors on a per-job basis" do
+          job1 = lambda { 1 + 2 }
+          job2 = lambda { raise "Hi" }
+          errors = {job1 => [], job2 => []}
+          b = @T.new_batch(:error_handler => lambda { |e, ctrl| errors[ctrl.job] << e }, :max_retries => 1)
+          b << job1
+          b << job2
+          b.wait_until_done
+          errors[job1].length.should == 0
+          errors[job2].length.should == 1
         end
       end
     end

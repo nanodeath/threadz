@@ -1,25 +1,14 @@
 module Threadz
 	# A control through which to manipulate an individual job
 	class Control
-		attr_reader :errors
+		attr_reader :job
+		attr_reader :job_errors
+		attr_reader :error_handler_errors
 
-		def initialize
-			@errors = []
-			@retry = false
-		end
-
-		def try_again(error_limit=Infinity)
-			if @errors.size < error_limit
-				@retry = true
-			end
-		end
-
-		def retry?
-			@retry
-		end
-
-		def reset_retry
-			@retry = false
+		def initialize(job)
+			@job = job
+			@job_errors = []
+			@error_handler_errors = []
 		end
 	end
 end
