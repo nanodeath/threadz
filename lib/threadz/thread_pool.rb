@@ -16,20 +16,25 @@ module Threadz
 
     # Creates a new thread pool into which you can queue jobs.
     # There are a number of options:
-    # :initial_size:: The number of threads you start out with initially.  Also, the minimum number of threads.
-    #                 By default, this is 10.
-    # :maximum_size:: The highest number of threads that can be allocated.  By default, this is the minimum size x 5.
-    # :kill_threshold:: Constant that determines when new threads are needed or when threads can be killed off.
-    #                   If the internally tracked kill score falls to positive kill_threshold, then a thread is killed off and the
-    #                   kill score is reset.  If the kill score rises to negative kill_threshold, then a new thread
-    #                   is created and the kill score is reset.  Every 0.1 seconds, the state of all threads in the
-    #                   pool is checked.  If there is more than one idle thread (and we're above minimum size), the
-    #                   kill score is incremented by THREADS_IDLE_SCORE for each idle thread.  If there are no idle threads
-    #                   (and we're below maximum size) the kill score is decremented by THREADS_KILL_SCORE for each queued job.
-    #                   If the thread pool is being perfectly utilized (no queued work or idle workers), the kill score will decay
-    #                   and lose 10% of its value.
-    #                   In the default case of kill_threshold=10, if the thread pool is overworked for 10 consecutive checks (that is,
-    #                   1 second), a new thread will be created and the counter reset.  Similarly, if the thread pool is underutilized
+    # :initial_size [10]:: The number of threads you start out with initially.  Also, the minimum number of threads.
+    # :maximum_size [+initial_size+ * 5]:: The highest number of threads that can be allocated.
+    # :kill_threshold [10]::
+    #                   Constant that determines when new threads are needed or when threads can be killed off.
+    #                   To understand what this means, I'll briefly (ha) explain what's called the +killscore+, which is used to gauge
+    #                   utilization over time of the threadpool.  It's just a number, and it starts at 0.  It has a special relationship
+    #                   to the +kill_threshold+, which will now be explained.
+    #                   If the +killscore+ rises to positive +kill_threshold+, this indicates that the threadpool is *underutilized*,
+    #                   a thread is killed off (if we're over the minimum number of threads), and the +killscore+ is reset to 0.
+    #                   If the +killscore+ falls to negative kill_threshold, this indicates that the threadpool is *overutilized*,
+    #                   a new thread is created (if we're under the maximum number of threads), and the +killscore+ is reset to 0.
+    #
+    #                   Every 0.1 seconds, the state of all threads in the pool is checked.
+    #                   * If there is at least one idle thread (and we're above minimum size), the +killscore+ is incremented by THREADS_IDLE_SCORE for each idle thread.
+    #                   * If there are no idle threads (and we're below maximum size) the +killscore+ is decremented by THREADS_KILL_SCORE for each queued job.
+    #                   * If the thread pool is being perfectly utilized (no queued work or idle workers), the +killscore+ will decay by 10%.
+    #
+    #                   In the default case of kill_threshold=10, if the thread pool is overworked by one job for 10 consecutive checks (that is,
+    #                   1 second), a new thread will be created and the counter reset.  Similarly, if the thread pool is underutilized by one thread
     #                   for 10 consecutive checks, an idle thread will be culled.  If you want the thread pool to scale more quickly with
     #                   demand, try lowering the kill_threshold value.
     def initialize(opts={})
@@ -46,23 +51,24 @@ module Threadz
       spawn_watch_thread
     end
     
+    # Returns the number of worker threads this pool is currently managing.
     def thread_count
       @worker_threads_count.value
     end
 
     # Push a process onto the job queue for the thread pool to pick up.
     # Note that using this method, you can't keep track of when the job
-    # finishes.  If you care about when it finishes, use batches.
+    # finishes.  If you care about when it finishes, use a Batch (using #new_batch).
     def process(callback = nil, &block)
       callback ||= block
       @queue << Control.new(callback)
       nil
     end
 
-    # Return a new batch that's attached into this thread pool.  See Threadz::ThreadPool::Batch
-    # for documention on opts.
+    # Return a new batch that's attached into this thread pool.  See Batch#new
+    # for documention on +opts+.
     def new_batch(opts={})
-      return Batch.new(self, opts)
+      Batch.new(self, opts)
     end
 
     private
@@ -88,6 +94,8 @@ module Threadz
     end
 
     # Kill a thread after it completes its current job
+    # NOTE: Currently this doesn't really work because it pushes a "suicide pill" on the END of the list of jobs,
+    # due to a technical limitation with Ruby's standard Queue.
     def kill_thread
       # TODO: ideally this would be unshift, but Queues don't have that.  Come up with an alternative.
       @queue << Directive::SUICIDE_PILL
@@ -107,11 +115,11 @@ module Threadz
             @killscore -= THREADS_BUSY_SCORE * @queue.length
           
           else
-            # Decay,
-            if(@killscore != 0)
+            # Decay
+            if @killscore != 0 # documented
               @killscore *= 0.9
             end
-            if(@killscore.abs < 1)
+            if @killscore.abs < 1
               @killscore = 0
             end
           end

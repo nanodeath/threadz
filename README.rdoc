@@ -42,14 +42,20 @@ This is a thread pool library that you can do two main things with, which I'll d
   b.wait_until_done(:timeout => 0.1)
   puts b.completed? ? "finished!" : "didn't finish"
 
-  # Exception handling: well-supported, see the specs though.  Much better examples.
+  # Error handling
+  b = T3.new_batch(:max_retries => 3)
+  b << lambda { raise }
+  b.wait_until_done
+  puts b.errors
+
+  b = T3.new_batch(:max_retries => 3, :error_handler => lambda { |error, control| puts "Error! #{error}" })
+  b << lambda { raise }
+  b.wait_until_done
+
+  # See the specs for more error handling stuff.  Much better examples.
 
 The thread pool is also smart -- depending on load, it can either spawn or cull additional threads (at a rate you can set).
 
 == Examples
 
-For examples, please see the well-documented specs.  They're all fairly simple and straightforward.  Please message me if they're not.
-
-== Disclaimer
-
-Consider this product in late alpha.  There are still some bugs to be worked out and the API may change.
+For examples, please see the well-documented specs.  They're all fairly simple and straightforward.  Please message me if you have issues that aren't answered by reading the spec.

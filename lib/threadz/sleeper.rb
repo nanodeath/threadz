@@ -2,7 +2,7 @@ require 'thread'
 require 'timeout'
 
 module Threadz
-	class Sleeper
+	class Sleeper # :nodoc: all
 		def initialize
 			@waiters = Queue.new
 		end

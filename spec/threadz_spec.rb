@@ -233,12 +233,12 @@ describe Threadz do
           b.wait_until_done
           error.should_not be_nil
         end
-        it "should retry up to 3 times by default" do
+        it "should not retry by default" do
           count = 0
           b = @T.new_batch(:error_handler => lambda { |e, ctrl| count += 1 })
           b << lambda { raise }
           b.wait_until_done
-          count.should == 3
+          count.should == 1
         end
         it "should retry up to the designated number of times" do
           count = 0
@@ -260,8 +260,8 @@ describe Threadz do
           b = @T.new_batch(:error_handler => lambda { |e, ctrl| raise })
           b << lambda { raise }
           b.wait_until_done
-          b.job_errors.length.should == 3
-          b.error_handler_errors.length.should == 3
+          b.job_errors.length.should == 1
+          b.error_handler_errors.length.should == 1
         end
         it "should allow you to respond to errors on a per-job basis" do
           job1 = lambda { 1 + 2 }

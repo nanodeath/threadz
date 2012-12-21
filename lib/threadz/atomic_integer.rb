@@ -5,7 +5,7 @@ module Threadz
 	# Provides a thread-safe integer counter thing.
 	# The code used in this file, while slightly verbose, is to optimize
 	# performance.  Avoiding additional method calls and blocks is preferred.
-	class AtomicInteger
+	class AtomicInteger # :nodoc:
 		def initialize(value)
 			@value = value
 			@mutex = Mutex.new
